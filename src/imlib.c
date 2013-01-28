@@ -488,6 +488,7 @@ static Imlib_Font feh_find_best_fit_font(winwidget w, int target_width, char *te
 	char *font_name = NULL;
 	char *p = NULL;
 	char fontbuf[1024];
+	int size_hi = 0, size_lo = 0; 
 
 	if (opt.font)
 		fn = gib_imlib_load_font(font = opt.font);
@@ -513,17 +514,27 @@ static Imlib_Font feh_find_best_fit_font(winwidget w, int target_width, char *te
 		p = strchr(font_name,'/');
 		if (p) {
 			*p = 0;
-			font_size = atoi(p+1);
-			while(--font_size>0) {
-				snprintf(fontbuf,sizeof(fontbuf),"%s/%d",font_name,font_size);
-				try_fn = gib_imlib_load_font(fontbuf);
-				if (try_fn) {
-					gib_imlib_get_text_size(try_fn, text, NULL, &width, &height, IMLIB_TEXT_TO_RIGHT);
-					if (width<=target_width) {
-						fn = try_fn;
-						break;
+			size_hi = atoi(p+1);
+			size_lo = 8;
+			if (size_hi>size_lo) {
+				D(("Fitting %d into %d, stated with font size of %d\n",width,target_width,size_hi));
+				while(size_hi>size_lo+1) {
+					font_size = (size_hi+size_lo) >> 1;
+					snprintf(fontbuf,sizeof(fontbuf),"%s/%d",font_name,font_size);
+					try_fn = gib_imlib_load_font(fontbuf);
+					if (try_fn) {
+						gib_imlib_get_text_size(try_fn, text, NULL, &width, &height, IMLIB_TEXT_TO_RIGHT);
+						D(("  Tried %d, got a new width of %d\n",font_size,width));
+					}
+					if (width>target_width) {
+						size_hi = font_size;
+					} else {
+						size_lo = font_size;
 					}
 				}
+				D(("  Chose: %s with a width of %d to fit into %d\n",fontbuf,width,target_width));
+				snprintf(fontbuf,sizeof(fontbuf),"%s/%d",font_name,size_lo);
+				fn = gib_imlib_load_font(fontbuf);
 			}
 		}
 	}
