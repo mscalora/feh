@@ -1417,6 +1417,10 @@ Switch to next image
 .
 Switch to previous image
 .
+.It Dv SIGURG
+.
+Reload images from source path(s)
+.
 .El
 .
 .

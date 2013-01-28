@@ -72,6 +72,8 @@ struct __fehoptions {
 	unsigned char text_bg;
 	unsigned char image_bg;
 	unsigned char no_fehbg;
+	unsigned char center_info;
+	unsigned char autofit_info;
 
 	char *output_file;
 	char *output_dir;
