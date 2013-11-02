@@ -68,13 +68,32 @@ static char *feh_magick_load_image(char *filename);
 void init_xinerama(void)
 {
 	if (opt.xinerama && XineramaIsActive(disp)) {
-		int major, minor;
-		if (getenv("XINERAMA_SCREEN"))
-			xinerama_screen = atoi(getenv("XINERAMA_SCREEN"));
-		else
-			xinerama_screen = 0;
+		int major, minor, px, py, i;
+
+		/* discarded */
+		Window dw;
+		int di;
+		unsigned int du;
+
 		XineramaQueryVersion(disp, &major, &minor);
 		xinerama_screens = XineramaQueryScreens(disp, &num_xinerama_screens);
+
+		if (getenv("XINERAMA_SCREEN"))
+			xinerama_screen = atoi(getenv("XINERAMA_SCREEN"));
+		else {
+			xinerama_screen = 0;
+			XQueryPointer(disp, root, &dw, &dw, &px, &py, &di, &di, &du);
+			for (i = 0; i < num_xinerama_screens; i++) {
+				if (XY_IN_RECT(px, py,
+							xinerama_screens[i].x_org,
+							xinerama_screens[i].y_org,
+							xinerama_screens[i].width,
+							xinerama_screens[i].height)) {
+					xinerama_screen = i;
+					break;
+				}
+			}
+		}
 	}
 }
 #endif				/* HAVE_LIBXINERAMA */
@@ -208,10 +227,15 @@ void feh_imlib_print_load_error(char *file, winwidget w, Imlib_Load_Error err)
 
 int feh_load_image(Imlib_Image * im, feh_file * file)
 {
-	Imlib_Load_Error err;
-	enum { SRC_IMLIB, SRC_HTTP, SRC_MAGICK } image_source = SRC_IMLIB;
+	Imlib_Load_Error err = IMLIB_LOAD_ERROR_NONE;
+	enum { SRC_IMLIB, SRC_HTTP, SRC_MAGICK } image_source =
+		SRC_IMLIB;
 	char *tmpname = NULL;
 	char *real_filename = NULL;
+
+#ifdef HAVE_LIBEXIF
+	ExifEntry *entry;
+#endif
 
 	D(("filename is %s, image is %p\n", file->filename, im));
 
@@ -223,7 +247,8 @@ int feh_load_image(Imlib_Image * im, feh_file * file)
 			|| (!strncmp(file->filename, "ftp://", 6))) {
 		image_source = SRC_HTTP;
 
-		tmpname = feh_http_load_image(file->filename);
+		if ((tmpname = feh_http_load_image(file->filename)) == NULL)
+			err = IMLIB_LOAD_ERROR_FILE_DOES_NOT_EXIST;
 	}
 	else
 		*im = imlib_load_image_with_error_return(file->filename, &err);
@@ -263,7 +288,19 @@ int feh_load_image(Imlib_Image * im, feh_file * file)
 
 #ifdef HAVE_LIBEXIF
 	file->ed = exif_get_data(file->filename);
-#endif		
+
+	if (file->ed) {
+		entry = exif_content_get_entry(file->ed->ifd[EXIF_IFD_0], 0x0112);
+		if (entry != NULL) {
+			if (*(entry->data) == 3)
+				gib_imlib_image_orientate(*im, 2);
+			else if (*(entry->data) == 6)
+				gib_imlib_image_orientate(*im, 1);
+			else if (*(entry->data) == 8)
+				gib_imlib_image_orientate(*im, 3);
+		}
+	}
+#endif
 
 	D(("Loaded ok\n"));
 	return(1);

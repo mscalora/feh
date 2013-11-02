@@ -72,6 +72,7 @@ struct __fehoptions {
 	unsigned char text_bg;
 	unsigned char image_bg;
 	unsigned char no_fehbg;
+	unsigned char keep_zoom_vp;
 
 	char *output_file;
 	char *output_dir;
@@ -189,6 +190,7 @@ struct __fehkb {
 	struct __fehkey toggle_fullscreen;
 	struct __fehkey reload_minus;
 	struct __fehkey reload_plus;
+	struct __fehkey toggle_keep_vp;
 };
 
 struct __fehbutton {
@@ -205,6 +207,8 @@ struct __fehbb {
 	struct __fehbutton menu;
 	struct __fehbutton blur;
 	struct __fehbutton rotate;
+	struct __fehbutton zoom_in;
+	struct __fehbutton zoom_out;
 };
 
 void init_parse_options(int argc, char **argv);

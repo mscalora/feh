@@ -149,6 +149,16 @@ void feh_reload_image(winwidget w, int resize, int force_new)
 	Imlib_Image tmp;
 	int old_w, old_h;
 
+	unsigned char tmode =0;
+	int tim_x =0;
+	int tim_y =0;
+	double tzoom =0;
+
+	tmode = w->mode;
+	tim_x = w->im_x;
+	tim_y = w->im_y;
+	tzoom = w->zoom;
+
 	if (!w->file) {
 		im_weprintf(w, "couldn't reload, this image has no file associated with it.");
 		winwidget_render_image(w, 0, 0);
@@ -216,7 +226,16 @@ void feh_reload_image(winwidget w, int resize, int force_new)
 		w->im_w = gib_imlib_image_get_width(w->im);
 		w->im_h = gib_imlib_image_get_height(w->im);
 	}
-	winwidget_render_image(w, resize, 0);
+	if (opt.keep_zoom_vp) {
+		/* put back in: */
+		w->mode = tmode;
+		w->im_x = tim_x;
+		w->im_y = tim_y;
+		w->zoom = tzoom;
+		winwidget_render_image(w, 0, 0);
+	} else {
+		winwidget_render_image(w, resize, 0);
+	}
 
 	winwidget_rename(w, title);
 	free(title);
@@ -235,6 +254,11 @@ void slideshow_change_image(winwidget winwid, int change, int render)
 	 */
 	int our_filelist_len = filelist_len;
 	char *s;
+
+	unsigned char tmode =0;
+	int tim_x =0;
+	int tim_y =0;
+	double tzoom =0;
 
 	/* Without this, clicking a one-image slideshow reloads it. Not very *
 	   intelligent behaviour :-) */
@@ -308,6 +332,14 @@ void slideshow_change_image(winwidget winwid, int change, int render)
 			last = NULL;
 		}
 
+		if (opt.keep_zoom_vp) {
+		/* pre loadimage - record settings */
+			tmode = winwid->mode;
+			tim_x = winwid->im_x;
+			tim_y = winwid->im_y;
+			tzoom = winwid->zoom;
+		}
+
 		if ((winwidget_loadimage(winwid, FEH_FILE(current_file->data)))
 		    != 0) {
 			winwid->mode = MODE_NORMAL;
@@ -318,8 +350,20 @@ void slideshow_change_image(winwidget winwid, int change, int render)
 			winwidget_reset_image(winwid);
 			winwid->im_w = gib_imlib_image_get_width(winwid->im);
 			winwid->im_h = gib_imlib_image_get_height(winwid->im);
-			if (render)
-				winwidget_render_image(winwid, 1, 0);
+			if (opt.keep_zoom_vp) {
+				/* put back in: */
+				winwid->mode = tmode;
+				winwid->im_x = tim_x;
+				winwid->im_y = tim_y;
+				winwid->zoom = tzoom;
+			}
+			if (render) {
+				if (opt.keep_zoom_vp) {
+					winwidget_render_image(winwid, 0, 0);
+				} else {
+					winwidget_render_image(winwid, 1, 0);
+				}
+			}
 
 			s = slideshow_create_name(FEH_FILE(current_file->data), winwid);
 			winwidget_rename(winwid, s);
@@ -423,8 +467,10 @@ char *feh_printf(char *str, feh_file * file, winwidget winwid)
 	char *c;
 	char buf[20];
 	static char ret[4096];
+	char *filelist_tmppath;
 
 	ret[0] = '\0';
+	filelist_tmppath = NULL;
 
 	for (c = str; *c != '\0'; c++) {
 		if ((*c == '%') && (*(c+1) != '\0')) {
@@ -432,107 +478,116 @@ char *feh_printf(char *str, feh_file * file, winwidget winwid)
 			switch (*c) {
 			case 'f':
 				if (file)
-					strcat(ret, file->filename);
+					strncat(ret, file->filename, sizeof(ret) - strlen(ret) - 1);
 				break;
 			case 'F':
 				if (file)
-					strcat(ret, shell_escape(file->filename));
+					strncat(ret, shell_escape(file->filename), sizeof(ret) - strlen(ret) - 1);
 				break;
 			case 'h':
 				if (file && (file->info || !feh_file_info_load(file, NULL))) {
 					snprintf(buf, sizeof(buf), "%d", file->info->height);
-					strcat(ret, buf);
+					strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case 'l':
 				snprintf(buf, sizeof(buf), "%d", gib_list_length(filelist));
-				strcat(ret, buf);
+				strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
+				break;
+			case 'L':
+				if (filelist_tmppath != NULL) {
+					strncat(ret, filelist_tmppath, sizeof(ret) - strlen(ret) - 1);
+				} else {
+					filelist_tmppath = feh_unique_filename("/tmp/","filelist");
+					feh_write_filelist(filelist, filelist_tmppath);
+					strncat(ret, filelist_tmppath, sizeof(ret) - strlen(ret) - 1);
+				}
 				break;
 			case 'm':
-				strcat(ret, mode);
+				strncat(ret, mode, sizeof(ret) - strlen(ret) - 1);
 				break;
 			case 'n':
 				if (file)
-					strcat(ret, file->name);
+					strncat(ret, file->name, sizeof(ret) - strlen(ret) - 1);
 				break;
 			case 'N':
 				if (file)
-					strcat(ret, shell_escape(file->name));
+					strncat(ret, shell_escape(file->name), sizeof(ret) - strlen(ret) - 1);
 				break;
 			case 'o':
 				if (winwid) {
 					snprintf(buf, sizeof(buf), "%d,%d", winwid->im_x,
 						winwid->im_y);
-					strcat(ret, buf);
+					strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case 'p':
 				if (file && (file->info || !feh_file_info_load(file, NULL))) {
 					snprintf(buf, sizeof(buf), "%d", file->info->pixels);
-					strcat(ret, buf);
+					strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case 'P':
 				if (file && (file->info || !feh_file_info_load(file, NULL))) {
-					strcat(ret, format_size(file->info->pixels));
+					strncat(ret, format_size(file->info->pixels), sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case 'r':
 				if (winwid) {
 					snprintf(buf, sizeof(buf), "%.1f", winwid->im_angle);
-					strcat(ret, buf);
+					strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case 's':
 				if (file && (file->info || !feh_file_info_load(file, NULL))) {
 					snprintf(buf, sizeof(buf), "%d", file->info->size);
-					strcat(ret, buf);
+					strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case 'S':
 				if (file && (file->info || !feh_file_info_load(file, NULL))) {
-					strcat(ret, format_size(file->info->size));
+					strncat(ret, format_size(file->info->size), sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case 't':
 				if (file && (file->info || !feh_file_info_load(file, NULL))) {
-					strcat(ret, file->info->format);
+					strncat(ret, file->info->format, sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case 'u':
 				snprintf(buf, sizeof(buf), "%d",
 					 current_file != NULL ? gib_list_num(filelist, current_file)
 					 + 1 : 0);
-				strcat(ret, buf);
+				strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
 				break;
 			case 'v':
-				strcat(ret, VERSION);
+				strncat(ret, VERSION, sizeof(ret) - strlen(ret) - 1);
 				break;
 			case 'V':
 				snprintf(buf, sizeof(buf), "%d", getpid());
-				strcat(ret, buf);
+				strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
 				break;
 			case 'w':
 				if (file && (file->info || !feh_file_info_load(file, NULL))) {
 					snprintf(buf, sizeof(buf), "%d", file->info->width);
-					strcat(ret, buf);
+					strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case 'z':
 				if (winwid) {
 					snprintf(buf, sizeof(buf), "%.2f", winwid->zoom);
-					strcat(ret, buf);
+					strncat(ret, buf, sizeof(ret) - strlen(ret) - 1);
 				}
 				break;
 			case '%':
-				strcat(ret, "%");
+				strncat(ret, "%", sizeof(ret) - strlen(ret) - 1);
 				break;
 			default:
 				weprintf("Unrecognized format specifier %%%c", *c);
 				strncat(ret, c - 1, 2);
 				break;
 			}
-		} else if ((*c == '\\') && (*(c+1) != '\0')) {
+		} else if ((*c == '\\') && (*(c+1) != '\0') && ((strlen(ret) + 3) < sizeof(ret))) {
 			c++;
 			switch (*c) {
 			case 'n':
@@ -542,9 +597,11 @@ char *feh_printf(char *str, feh_file * file, winwidget winwid)
 				strncat(ret, c - 1, 2);
 				break;
 			}
-		} else
+		} else if ((strlen(ret) + 2) < sizeof(ret))
 			strncat(ret, c, 1);
 	}
+	if (filelist_tmppath != NULL)
+		free(filelist_tmppath);
 	return(ret);
 }
 

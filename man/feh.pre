@@ -72,6 +72,8 @@ image in it, the keyboard and mouse can be used to change slides
 In slideshow mode, images can be deleted either from the filelist or from the
 disk, the new filelist can then be saved to the disk and reopened at a later
 time.
+An image can also be read from stdin via
+.Qq feh - .
 .
 .Pp
 .
@@ -355,13 +357,20 @@ window becomes visible.  Use
 .Cm --preload
 to get a progress bar.
 .
-.It Cm --info Ar commandline
+.It Cm --info Oo Ar flag Oc Ns Ar commandline
 .
 Execute
 .Ar commandline
 and display its output in the bottom left corner of the image.  Can be used to
 display e.g. image dimensions or EXIF information.  Supports
 .Sx FORMAT SPECIFIERS .
+.
+If
+.Ar flag
+is set to
+.Qo ; Qc ,
+the output will not be displayed by default, but has to be enabled by the
+toggle_info key.
 .
 .It Cm -k , --keep-http
 .
@@ -374,6 +383,11 @@ They will be in
 with
 .Qq Nm
 in the name.
+.
+.It Cm --keep-zoom-vp
+.
+When switching images, keep zoom and viewport settings
+.Pq zoom level and X, Y offsets
 .
 .It Cm -l , --list
 .
@@ -527,9 +541,14 @@ in paused mode.
 .It Cm -S , --sort Ar sort_type
 .
 The file list may be sorted according to image parameters.  Allowed sort
-types are: name, filename, width, height, pixels, size, format.  For sort
-modes other than name or filename, a preload run will be necessary,
+types are: name, filename, mtime, width, height, pixels, size, format.  For sort
+modes other than name, filename, or mtime, a preload run will be necessary,
 causing a delay proportional to the number of images in the list.
+.
+.Pp
+.
+The mtime sort mode sorts images by most recently modified. To sort by oldest
+first, reverse the filelist with --reverse.
 .
 .It Cm -| , --start-at Ar filename
 .
@@ -741,13 +760,26 @@ to your X startup script
 .
 .Pp
 .
+For the
+.Cm --bg-center
+and
+.Cm --bg-max
+options, you can use the
+.Cm --geometry
+option to specify an offset from one side of the screen instead of
+centering the image.  Positive values will offset from the left/top
+side, negative values from the bottom/right.  +0 and -0 are both
+valid and distinct values.
+.
+.Pp
+.
 Note that all options except
 .Cm --bg-tile
 support Xinerama.
 For instance, if you have multiple screens connected and use e.g.
 .Cm --bg-center ,
 .Nm
-will center the image on each screen.
+will center or appropriately offset the image on each screen.
 You may even specify more than one file, in that case, the first file is set
 on screen 0, the second on screen 1, and so on.
 .
@@ -817,6 +849,10 @@ Image height
 .It %l
 .
 Total number of files in filelist
+.
+.It %L
+.
+Temporary copy of filelist. Multiple uses of %L within the same format string will return the same copy.
 .
 .It %m
 .
@@ -1048,15 +1084,15 @@ and save the caption, or escape to cancel editing.  Note that you can insert
 an actual newline into the caption using
 .Aq CTRL+return .
 .
-.It e Bq toggle_exif
-.
-.Pq only if compiled with exif=1
-Toggle EXIF tag display
-.
 .It d Bq toggle_filenames
 .
 Toggle filename display
 .Pq see Cm --draw-filename
+.
+.It e Bq toggle_exif
+.
+.Pq only if compiled with exif=1
+Toggle EXIF tag display
 .
 .It f Bq save_filelist
 .
@@ -1073,6 +1109,12 @@ change slides based on
 .
 Toggle info display
 .Pq see Cm --info
+.
+.It k Bq toggle_keep_vp
+.
+Toggle zoom and viewport keeping. When enabled,
+.Nm
+will keep zoom and X, Y offset when switching images.
 .
 .It m Bq toggle_menu
 .
@@ -1358,6 +1400,15 @@ Blur current image
 .
 Rotate current image
 .
+.It unbound Bq zoom_in
+.
+Zoom in
+.
+.It unbound Bq zoom_out
+.
+Zoom out
+.
+.
 .El
 .
 .
@@ -1547,10 +1598,6 @@ section.
 .
 .
 .Sh BUGS
-.
-In a Xinerama setup, fullscreen mode only works properly on screen 0.  Set
-.Ev XINERAMA_SCREEN
-to the correct screen number or toggle fullscreen off, then on as a workaround.
 .
 .Pp
 .

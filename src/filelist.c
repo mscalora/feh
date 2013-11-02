@@ -155,6 +155,41 @@ static void feh_print_stat_error(char *path)
 	}
 }
 
+static void add_stdin_to_filelist()
+{
+	char buf[1024];
+	size_t readsize;
+	char *sfn = estrjoin("_", "/tmp/feh_stdin", "XXXXXX", NULL);
+	int fd = mkstemp(sfn);
+	FILE *outfile;
+
+	if (fd == -1) {
+		free(sfn);
+		weprintf("cannot read from stdin: mktemp:");
+		return;
+	}
+
+	outfile = fdopen(fd, "w");
+
+	if (outfile == NULL) {
+		free(sfn);
+		weprintf("cannot read from stdin: fdopen:");
+		return;
+	}
+
+	while ((readsize = fread(buf, sizeof(char), sizeof(buf), stdin)) > 0) {
+		if (fwrite(buf, sizeof(char), readsize, outfile) < readsize) {
+			free(sfn);
+			return;
+		}
+	}
+	fclose(outfile);
+
+	filelist = gib_list_add_front(filelist, feh_file_new(sfn));
+	add_file_to_rm_filelist(sfn);
+	free(sfn);
+}
+
 
 /* Recursive */
 void add_file_to_filelist_recursively(char *origpath, unsigned char level)
@@ -183,6 +218,11 @@ void add_file_to_filelist_recursively(char *origpath, unsigned char level)
 			D(("Adding url %s to filelist\n", path));
 			filelist = gib_list_add_front(filelist, feh_file_new(path));
 			/* We'll download it later... */
+			free(path);
+			return;
+		} else if ((len == 1) && (path[0] == '-')) {
+			D(("Adding temporary file for stdin (-) to filelist\n"));
+			add_stdin_to_filelist();
 			free(path);
 			return;
 		} else if (opt.filelistfile) {
@@ -354,6 +394,25 @@ int feh_cmp_name(void *file1, void *file2)
 	return(strcmp(FEH_FILE(file1)->name, FEH_FILE(file2)->name));
 }
 
+/* Return -1 if file1 is _newer_ than file2 */
+int feh_cmp_mtime(void *file1, void *file2)
+{
+	struct stat s1, s2;
+
+	if (stat(FEH_FILE(file1)->filename, &s1)) {
+		feh_print_stat_error(FEH_FILE(file1)->filename);
+		return(-1);
+	}
+
+	if (stat(FEH_FILE(file2)->filename, &s2)) {
+		feh_print_stat_error(FEH_FILE(file2)->filename);
+		return(-1);
+	}
+
+	/* gib_list_sort is not stable, so explicitly return 0 as -1 */
+	return(s1.st_mtime >= s2.st_mtime ? -1 : 1);
+}
+
 int feh_cmp_width(void *file1, void *file2)
 {
 	return((FEH_FILE(file1)->info->width - FEH_FILE(file2)->info->width));
@@ -381,7 +440,7 @@ int feh_cmp_format(void *file1, void *file2)
 
 void feh_prepare_filelist(void)
 {
-	if (opt.list || opt.customlist || (opt.sort > SORT_FILENAME)
+	if (opt.list || opt.customlist || (opt.sort > SORT_MTIME)
 			|| opt.preload || opt.min_width || opt.min_height
 			|| (opt.max_width != UINT_MAX) || (opt.max_height != UINT_MAX)) {
 		/* For these sort options, we have to preload images */
@@ -406,6 +465,9 @@ void feh_prepare_filelist(void)
 		break;
 	case SORT_FILENAME:
 		filelist = gib_list_sort(filelist, feh_cmp_filename);
+		break;
+	case SORT_MTIME:
+		filelist = gib_list_sort(filelist, feh_cmp_mtime);
 		break;
 	case SORT_WIDTH:
 		filelist = gib_list_sort(filelist, feh_cmp_width);

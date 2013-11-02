@@ -397,6 +397,7 @@ static void feh_parse_option_array(int argc, char **argv, int finalrun)
 		{"info"          , 1, 0, 234},
 		{"force-aliasing", 0, 0, 235},
 		{"no-fehbg"      , 0, 0, 236},
+		{"keep-zoom-vp"  , 0, 0, 237},
 
 		{0, 0, 0, 0}
 	};
@@ -500,6 +501,8 @@ static void feh_parse_option_array(int argc, char **argv, int finalrun)
 				opt.sort = SORT_NAME;
 			else if (!strcasecmp(optarg, "filename"))
 				opt.sort = SORT_FILENAME;
+			else if (!strcasecmp(optarg, "mtime"))
+				opt.sort = SORT_MTIME;
 			else if (!strcasecmp(optarg, "width"))
 				opt.sort = SORT_WIDTH;
 			else if (!strcasecmp(optarg, "height"))
@@ -714,13 +717,19 @@ static void feh_parse_option_array(int argc, char **argv, int finalrun)
 			break;
 		case 234:
 			opt.info_cmd = estrdup(optarg);
-			opt.draw_info = 1;
+			if (opt.info_cmd[0] == ';')
+				opt.info_cmd++;
+			else
+				opt.draw_info = 1;
 			break;
 		case 235:
 			opt.force_aliasing = 1;
 			break;
 		case 236:
 			opt.no_fehbg = 1;
+			break;
+		case 237:
+			opt.keep_zoom_vp = 1;
 			break;
 		default:
 			break;
@@ -797,6 +806,10 @@ static void show_version(void)
 
 #ifdef HAVE_LIBEXIF
 		"exif "
+#endif
+
+#ifdef INCLUDE_HELP
+		"help "
 #endif
 
 #if _FILE_OFFSET_BITS == 64
