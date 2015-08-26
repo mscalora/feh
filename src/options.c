@@ -406,6 +406,7 @@ static void feh_parse_option_array(int argc, char **argv, int finalrun)
 		{"keep-zoom-vp"  , 0, 0, 237},
 		{"scroll-step"   , 1, 0, 238},
 		{"xinerama-index", 1, 0, 239},
+		{"center-info"   , 0, 0, 240},
 
 		{0, 0, 0, 0}
 	};
@@ -759,6 +760,9 @@ static void feh_parse_option_array(int argc, char **argv, int finalrun)
 		case 239:
 			opt.xinerama_index = atoi(optarg);
 			break;
+		case 240:
+			opt.center_info = 1;
+			break;
 		default:
 			break;
 		}
@@ -767,7 +771,8 @@ static void feh_parse_option_array(int argc, char **argv, int finalrun)
 	/* Now the leftovers, which must be files */
 	if (optind < argc) {
 		while (optind < argc) {
-			if (opt.reload)
+/*			if (opt.reload)
+*/
 				original_file_items = gib_list_add_front(original_file_items, estrdup(argv[optind]));
 			/* If recursive is NOT set, but the only argument is a directory
 			   name, we grab all the files in there, but not subdirs */
